@@ -1,3 +1,5 @@
+The original module only accept File object from HTML5. Howerver, there are many scenarios in which uri, dataURL you have. 
+
 # Meteor Clientside Image Manipulation
 
 This package was born out of the necessity to process images before uploading them to the server. 
