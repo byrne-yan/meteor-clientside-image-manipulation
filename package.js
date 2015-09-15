@@ -1,5 +1,5 @@
 Package.describe({
-  name: 'ccorcos:clientside-image-manipulation',
+  name: 'sbj:clientside-image-manipulation',
   summary: 'A clientside javascript library for manipulating images before uploading.',
   version: '1.0.4',
   git: 'https://github.com/ccorcos/meteor-clientside-image-manipulation.git'
