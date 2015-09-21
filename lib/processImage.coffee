@@ -105,7 +105,7 @@ processImage = (imageFile, rest...) ->
     else
       data = canvas.toDataURL("image/jpeg")
 
-    callback(data)
+    callback data,img.exifdata
 
   url = window.URL || window.webkitURL
   if typeof imageFile == 'string'
