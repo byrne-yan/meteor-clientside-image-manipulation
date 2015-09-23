@@ -8,9 +8,9 @@ Package.describe({
 Package.onUse(function(api) {
   api.versionsFrom('1.0');
 
-  api.use(['coffeescript', 'underscore'], 'client')
+  api.use(['coffeescript', 'underscore', 'cfs:micro-queue@0.0.6','reactive-var','tracker'], 'client')
 
-  api.addFiles(['lib/binaryFile.js', 'lib/exif.js', 'lib/processImage.coffee'], 'client');
+  api.addFiles(['lib/exif.js', 'lib/processImage.coffee'], 'client');
 
   api.export('processImage', ['client'])
 

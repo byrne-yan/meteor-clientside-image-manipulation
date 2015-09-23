@@ -1,5 +1,7 @@
 
-# processImage = (imageFile, maxWidth, maxHeight, callback) ->
+img_process_queue = new MicroQueue false
+processing_pixels = new ReactiveVar 0
+
 processImage = (imageFile, rest...) ->
   callback = rest[rest.length-1]
   if not _.isFunction(callback) then console.log "ERROR: you need to pass a callback function to processImage"
@@ -7,28 +9,42 @@ processImage = (imageFile, rest...) ->
   maxHeight = undefined
   maxWidth = undefined
   quality = undefined
-  
-  if rest.length is 3 or 4
-    maxWidth = rest[0]
-    maxHeight = rest[1]
-    if rest.length is 4
-      quality = rest[2]
-    
-    
+  exif = undefined
+  if rest.length is 2
+    options = rest[0]
+    maxWidth = options.maxWidth
+    maxHeight = options.maxHeight
+    quality = options.quality
+    exif = options.exif
+#  console.log "exif:"+exif
+
+#  if exif and exif.ImageHeight*exif.ImageWidth< 200*200
+
+  img_process_queue.insert Date.now(),[imageFile,maxWidth,maxHeight,quality,exif,callback];
+
+
+doProcess = (args) ->
+  imageFile = args[0]
+  maxWidth = args[1]
+  maxHeight = args[2]
+  quality = args[3]
+  exif = args[4]
+  callback = args[5]
+
   canvas = document.createElement('canvas')
   ctx = canvas.getContext("2d")
   img = new Image()
+  if exif
+    img.exif = exif
+    img.estimatePixels = exif.ImageHeight*exif.ImageWidth
+  else
+    img.estimatePixels = 3600*2400
+
+  processing_pixels.set processing_pixels.get()+img.estimatePixels
   img.crossOrigin = 'anonymous'
-  objectURLToBlob = (url, callback) ->
-    http = new XMLHttpRequest()
-    http.open "GET", url, true
-    http.responseType = "blob"
-    http.onload = (e) ->
-      if this.status == 200 || this.status == 0
-        callback(this.response)
-    http.send()
 
   process = (exif) ->
+#    console.log "start process"+ Date.now()
     transform = "none"
 #    console.log exif
 #    console.log img.height, img.width
@@ -63,8 +79,9 @@ processImage = (imageFile, rest...) ->
 
     canvas.width = width
     canvas.height = height
-    ctx.fillStyle = "white"
-    ctx.fillRect 0, 0, canvas.width, canvas.height
+#    ctx.fillStyle = "white"
+#    ctx.fillRect 0, 0, canvas.width, canvas.height
+#    ctx.clearRect 0,0,canvas.width, canvas.height #faster
     if transform is "left"
       ctx.setTransform 0, -1, 1, 0, 0, height
       ctx.drawImage img, 0, 0, height, width
@@ -81,7 +98,7 @@ processImage = (imageFile, rest...) ->
 
 
 # process into an image
-    pixels = ctx.getImageData(0, 0, canvas.width, canvas.height)
+#    pixels = ctx.getImageData(0, 0, canvas.width, canvas.height)
 
 # filter out the greenscreen!
 # r = undefined
@@ -98,14 +115,39 @@ processImage = (imageFile, rest...) ->
 #     b = pixels.data[i + 2]
 #     pixels.data[i + 3] = 0  if g > 100 and g > r * 1.35 and g > b * 1.6
 
-    ctx.putImageData pixels, 0, 0
+#    ctx.putImageData pixels, 0, 0
 
     if quality
       data = canvas.toDataURL("image/jpeg", quality)
     else
       data = canvas.toDataURL("image/jpeg")
 
-    callback data,img.exifdata
+#    console.log "done process"+ Date.now()
+
+#    pixels = null
+    nPixels = img.estimatePixels
+    img = null
+    ctx = null
+    canvas = null
+    callback data
+    processing_pixels.set processing_pixels.get()-nPixels
+
+  loadUri2Img = (imageFile, img ) ->
+    window.resolveLocalFileSystemURL imageFile, (fileEntry) ->
+#      console.log fileEntry
+      fileEntry.file (file) ->
+        reader = new FileReader()
+        reader.onerror = (e) ->
+          console.log "file loading error:", e
+          processing_pixels.set processing_pixels.get()-img.estimatePixels
+        reader.onload = (e) ->
+#          console.log "image loaded:"+ Date.now()
+          content = e.target.result
+          delete e.target #release memory
+          img.src = content
+        reader.readAsDataURL(file)
+      , (error) -> console.log error
+    , (error) -> console.log error
 
   url = window.URL || window.webkitURL
   if typeof imageFile == 'string'
@@ -118,21 +160,9 @@ processImage = (imageFile, rest...) ->
     else
       if /^file\:/i.test(imageFile)
         if Meteor && Meteor.isCordova #fix for meteor that does not support file://
-          console.log 'file://* fixed for meteor cordova'
+#          console.log 'file://* fixed for meteor cordova'
           category = 'dataURI'
-          window.resolveLocalFileSystemURL imageFile, (fileEntry) ->
-            console.log fileEntry
-            fileEntry.file (file) ->
-              reader = new FileReader()
-              reader.onloadend = (result) ->
-                if reader.error
-                  console.log reader.error
-                else
-                  img.src = reader.result
-              reader.readAsDataURL(file)
-            , (error) -> console.log error
-          , (error) -> console.log error
-
+          loadUri2Img imageFile, img
         else
           category = 'URL'
           img.src = imageFile
@@ -143,44 +173,21 @@ processImage = (imageFile, rest...) ->
     category = 'File'
     img.src = url.createObjectURL(imageFile)
 
-  img.onload = () ->
-    EXIF.getData　img,() ->
-      if category == 'File' then url.revokeObjectURL @src
-      process img.exifdata
+  img.onload = (e) ->
+#    console.log "onload:"+ Date.now(), e.target.exif
 
-#  img.onload = () ->
-#    switch category
-#      when 'dataURI'
-#        exif = EXIF.readFromBinaryFile arrayBuffer
-#
-#    arrayBuffer = base64ToArrayBuffer(imageFile)
-#        process arrayBuffer
-#      when 'objectURL'
-#        fileReader = new FileReader()
-#        fileReader.onload = (e) -> process e.target.result
-#        objectURLToBlob imageFile, blob -> fileReader.readAsArrayBuffer blob
-#      when 'URL'
-#        console.log img.currentSrc, img.crossOrigin
-#        http = new XMLHttpRequest()
-#        http.onload = ()  ->
-#          if this.status == 200 || this.status == 0
-#            console.log http.response
-#            process　http.response
-#          else
-#            console.log this.status
-#            throw "Could not load image"
-#          http = null
-#        http.onprogress = (e) ->
-#          console.log e, e.type, e.loaded,'/', e.total
-#        http.open "GET", imageFile, true
-#        http.responseType = "arraybuffer"
-##        http.setRequestHeader 'Origin',"*" #window.location.origin
-#        http.send null
-#      when 'File'
-#        url.revokeObjectURL @src
-#        fileReader = new FileReader()
-#        fileReader.onload = (e) ->
-#          process e.target.result
-#        fileReader.readAsArrayBuffer imageFile
-#      else
-#        throw new Error('unknown image')
+    if e.target.exif
+      if category == 'File' then url.revokeObjectURL @src
+      process e.target.exif
+    else
+#      console.log "EXIF.getData:"+ Date.now()
+      EXIF.getData　e.target, () ->
+        if category == 'File' then url.revokeObjectURL @src
+        process img.exifdata
+
+Tracker.autorun ()->
+  if img_process_queue.length() >0 and processing_pixels.get() < 2*2000*2000
+    doProcess img_process_queue.getFirstItem()
+
+Tracker.autorun ()->
+  console.log "image processing:"+processing_pixels.get()
