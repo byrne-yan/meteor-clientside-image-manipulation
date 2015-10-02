@@ -186,7 +186,7 @@ doProcess = (args) ->
         process img.exifdata
 
 Tracker.autorun ()->
-  if img_process_queue.length() >0 and processing_pixels.get() < 2*2000*2000
+  if (img_process_queue.length() >0 and (!Meteor.isCordova or processing_pixels.get() < 2*2000*2000))
     doProcess img_process_queue.getFirstItem()
 
 Tracker.autorun ()->
