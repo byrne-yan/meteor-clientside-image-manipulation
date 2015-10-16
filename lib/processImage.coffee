@@ -3,6 +3,12 @@ img_process_queue = new MicroQueue false
 processing_pixels = new ReactiveVar 0
 
 processImage = (imageFile, rest...) ->
+  console.time 'processImage'
+  console.time 'processImage-async'
+  __processImage imageFile, rest...
+  console.timeEnd 'processImage'
+
+__processImage = (imageFile, rest...) ->
   callback = rest[rest.length-1]
   if not _.isFunction(callback) then console.log "ERROR: you need to pass a callback function to processImage"
 
@@ -67,6 +73,8 @@ doProcess = (args) ->
       width = img.width
       height = img.height
 
+    console.log "transform,width,height", transform, width, height
+
     if maxWidth and maxHeight
       if width / maxWidth > height / maxHeight
         if width > maxWidth
@@ -76,7 +84,8 @@ doProcess = (args) ->
         if height > maxHeight
           width *= maxHeight / height
           height = maxHeight
-
+    width = Math.floor width
+    height = Math.floor height
     canvas.width = width
     canvas.height = height
 #    ctx.fillStyle = "white"
@@ -117,6 +126,7 @@ doProcess = (args) ->
 
 #    ctx.putImageData pixels, 0, 0
 
+
     if quality
       data = canvas.toDataURL("image/jpeg", quality)
     else
@@ -129,7 +139,8 @@ doProcess = (args) ->
     img = null
     ctx = null
     canvas = null
-    callback data
+    console.timeEnd 'processImage-async'
+    callback data, width, height
     processing_pixels.set processing_pixels.get()-nPixels
 
   loadUri2Img = (imageFile, img ) ->
