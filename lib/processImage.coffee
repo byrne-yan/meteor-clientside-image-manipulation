@@ -3,14 +3,14 @@ img_process_queue = new MicroQueue false
 processing_pixels = new ReactiveVar 0
 
 processImage = (imageFile, rest...) ->
-  console.time 'processImage'
-  console.time 'processImage-async'
+#  console.time 'processImage'
+#  console.time 'processImage-async'
   __processImage imageFile, rest...
-  console.timeEnd 'processImage'
+#  console.timeEnd 'processImage'
 
 __processImage = (imageFile, rest...) ->
   callback = rest[rest.length-1]
-  if not _.isFunction(callback) then console.log "ERROR: you need to pass a callback function to processImage"
+  if not _.isFunction(callback) then throw "ERROR: you need to pass a callback function to processImage"
 
   maxHeight = undefined
   maxWidth = undefined
@@ -73,7 +73,7 @@ doProcess = (args) ->
       width = img.width
       height = img.height
 
-    console.log "transform,width,height", transform, width, height
+#    console.log "transform,width,height", transform, width, height
 
     if maxWidth and maxHeight
       if width / maxWidth > height / maxHeight
@@ -139,7 +139,7 @@ doProcess = (args) ->
     img = null
     ctx = null
     canvas = null
-    console.timeEnd 'processImage-async'
+#    console.timeEnd 'processImage-async'
     callback data, width, height
     processing_pixels.set processing_pixels.get()-nPixels
 
@@ -149,7 +149,7 @@ doProcess = (args) ->
       fileEntry.file (file) ->
         reader = new FileReader()
         reader.onerror = (e) ->
-          console.log "file loading error:", e
+#          console.log "file loading error:", e
           processing_pixels.set processing_pixels.get()-img.estimatePixels
         reader.onload = (e) ->
 #          console.log "image loaded:"+ Date.now()
@@ -200,5 +200,5 @@ Tracker.autorun ()->
   if (img_process_queue.length() >0 and (!Meteor.isCordova or processing_pixels.get() < 2*2000*2000))
     doProcess img_process_queue.getFirstItem()
 
-Tracker.autorun ()->
-  console.log "image processing:"+processing_pixels.get()
+#Tracker.autorun ()->
+#  console.log "image processing:"+processing_pixels.get()
